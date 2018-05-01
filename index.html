@@ -1,49 +1,344 @@
 <!doctype html>
 <html>
-	<head>
-		<meta charset="utf-8">
-		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
-		<title>reveal.js</title>
+    <title>reveal.js</title>
 
-		<link rel="stylesheet" href="css/reveal.css">
-		<link rel="stylesheet" href="css/theme/black.css">
+    <link rel="stylesheet" href="css/reveal.css">
+    <link rel="stylesheet" href="css/theme/black.css">
 
-		<!-- Theme used for syntax highlighting of code -->
-		<link rel="stylesheet" href="lib/css/zenburn.css">
+    <!-- Theme used for syntax highlighting of code -->
+    <link rel="stylesheet" href="lib/css/zenburn.css">
 
-		<!-- Printing and PDF exports -->
-		<script>
-			var link = document.createElement( 'link' );
-			link.rel = 'stylesheet';
-			link.type = 'text/css';
-			link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
-			document.getElementsByTagName( 'head' )[0].appendChild( link );
-		</script>
-	</head>
-	<body>
-		<div class="reveal">
-			<div class="slides">
-				<section>Slide 1</section>
-				<section>Slide 2</section>
-			</div>
-		</div>
+    <!-- Printing and PDF exports -->
+    <script>
+      var link = document.createElement( 'link' );
+      link.rel = 'stylesheet';
+      link.type = 'text/css';
+      link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+      document.getElementsByTagName( 'head' )[0].appendChild( link );
+    </script>
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+        <section data-markdown>
+          Everything you ever wanted to do with
 
-		<script src="lib/js/head.min.js"></script>
-		<script src="js/reveal.js"></script>
+          ## Image Manipulation
 
-		<script>
-			// More info about config & dependencies:
-			// - https://github.com/hakimel/reveal.js#configuration
-			// - https://github.com/hakimel/reveal.js#dependencies
-			Reveal.initialize({
-				dependencies: [
-					{ src: 'plugin/markdown/marked.js' },
-					{ src: 'plugin/markdown/markdown.js' },
-					{ src: 'plugin/notes/notes.js', async: true },
-					{ src: 'plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } }
-				]
-			});
-		</script>
-	</body>
+          in Golang
+        </section>
+
+        <section data-markdown>
+          whoami
+
+          ## Matthew Gray
+
+          Rubiest at Storypark
+
+          https://matthew.nz
+        </section>
+
+        <section data-markdown>
+          GOALS
+
+          * Create an image
+          * Compression
+          * Conversion
+          * Stripping metadata
+          * Resizing
+        </section>
+
+        <section data-markdown>
+          `image.Image` describes an interface with the minimum you need
+          to present an image.
+
+          ```golang
+          type Image interface {
+              // ColorModel returns the Image's color model.
+              ColorModel() color.Model
+              // Bounds returns the domain for which At can
+              // return non-zero color. The bounds do not
+              // necessarily contain the point (0, 0).
+              Bounds() Rectangle
+              // At returns the color of the pixel at (x, y).
+              // At(Bounds().Min.X, Bounds().Min.Y) returns
+              // the upper-left pixel of the grid.
+              // At(Bounds().Max.X-1, Bounds().Max.Y-1) returns
+              // the lower-right one.
+              At(x, y int) color.Color
+          }
+          ```
+        </section>
+
+        <section data-markdown>
+          `image.Image` is implemented by
+          * `image.Alpha` for 8 bit colour
+          * `image.CMYK` based on [Cyan Magenta and Yellow](https://en.wikipedia.org/wiki/CMYK_color_model)
+          * `image.Paletted`
+          * `image.RGBA` for [32-bit alpha-premultiplied color](https://en.wikipedia.org/wiki/Alpha_compositing)
+          * `image.NRGBA` for non-RGBA colour used in webp
+
+        </section>
+
+        <section data-markdown>
+          And in higher resolution by
+          * `image.Alpha16`
+          * `image.Gray16`
+          * `image.NRGBA64`
+          * `image.RGBA64`
+        </section>
+
+        <section data-markdown>
+          Or alternative formats like
+          * `image.Uniform` for infinite-sized images
+          * `image.YCbCr` for [higher level colour spaces](https://en.wikipedia.org/wiki/YCbCr)
+          * `image.NYCbCrA` for non-Y'CbCr-with-alpha colors
+        </section>
+
+        <section data-markdown>
+          Generally a package named `image.[type]`
+
+          Is just managing a collection of `color.[type]`
+
+          Stored as a list of int8
+        </section>
+
+        <section data-markdown>
+          So lets go and make an image!
+          ```golang
+          type RGBA struct {
+            // Pix holds the image's pixels, in R, G, B, A order.
+            // The pixel at (x, y) starts at Pix[(y-Rect.Min.Y)*Stride
+            // + (x-Rect.Min.X)*4].
+            Pix []uint8
+
+            // Stride is the Pix stride (in bytes) between vertically
+            // adjacent pixels.
+            Stride int
+
+            // Rect is the image's bounds.
+            Rect Rectangle
+          }
+          ```
+        </section>
+
+        <section data-markdown>
+          And those bounds will need these definitions
+          ```golang
+          // Rectangle contains the points with
+          // Min.X &lt;= X &lt; Max.X, Min.Y &lt;= Y &lt; Max.Y.
+          type Rectangle struct {
+            Min, Max Point
+          }
+
+          // Point is an X, Y coordinate pair. The axes
+          // increase right and down.
+          type Point struct {
+            X, Y int
+          }
+          ```
+        </section>
+
+        <section data-markdown>
+          Lets make small image based on these interfaces.
+
+          To do this, you need the `image` package.
+
+          ```golang
+          img := image.RGBA{}
+
+          img.Rect = image.Rectangle{
+            image.Point{0, 0},
+            image.Point{1, 5},
+          }
+
+          // Stride is the Pix stride (in bytes) between
+          // vertically adjacent pixels.
+          img.Stride = 4
+          ```
+        </section>
+
+        <section data-markdown>
+          Nice, now lets make an image
+          ```golang
+          // Pix holds the image's pixels, in R, G, B, A order
+          img.Pix = []uint8{
+            0xff , 0x0  , 0x0  , 0xff , // Red
+            0x0  , 0xff , 0x0  , 0xff , // Green
+            0x0  , 0x0  , 0xff , 0xff , // Blue
+            0x0  , 0xff , 0x0  , 0xff , // Green
+            0xff , 0x0  , 0x0  , 0xff , // Red
+          }
+          ```
+        </section>
+
+        <section data-markdown>
+          Let's compress it with `image/png`
+
+          And write it to disk with `os`
+
+          ```golang
+          f, err := os.Create("test.png")
+          if err != nil {
+            panic(err)
+          }
+          defer f.Close()
+
+          // Note, dereferencing pointer type
+          err = png.Encode(f, &img)
+          if err != nil {
+            panic(err)
+          }
+          ```
+        </section>
+
+        <section data-markdown>
+          And voila!
+
+          We've got a 5x1 pixel image
+        </section>
+
+        <section data-markdown>
+          GOALS
+
+          * ~~Create an image~~ DONE
+          * ~~Compression~~ DONE
+          * Conversion
+          * Stripping metadata
+          * Resizing
+        </section>
+
+        <section data-markdown>
+          To convert images we need to
+
+          1. Read the file
+          2. Decode the image
+          3. Re-encode as jpeg
+          4. Write out to disk
+        </section>
+
+        <section data-markdown>
+          Lets open fiels for reading and writing
+          ```golang
+          in, err := os.Open("test.png")
+          if err != nil {
+            panic(err)
+          }
+          defer in.Close()
+
+          out, err := os.Create("test.jpg")
+          if err != nil {
+            panic(err)
+          }
+          defer out.Close()
+          ```
+        </section>
+
+        <section data-markdown>
+          And re-encode as JPEG
+          ```golang
+          img, err := png.Decode(in)
+          if err != nil {
+            panic(err)
+          }
+
+          opts := jpeg.Options{Quality: 100}
+          err = jpeg.Encode(out, img, &opts)
+          if err != nil {
+            panic(err)
+          }
+          ```
+        </section>
+
+        <section data-markdown>
+          Where has that metadata exif stuff gone?
+
+          preview &gt; tools &gt; show inspector
+
+          (i) &gt; exif
+        </section>
+
+        <section data-markdown>
+          ```golang
+          path := "/Users/mbgray/Desktop/IMG_20180401_182653.jpg"
+          in, err := os.Open(path)
+          if err != nil {
+            panic(err)
+          }
+          defer in.Close()
+
+          img, err := jpeg.Decode(in)
+          if err != nil {
+            panic(err)
+          }
+          ```
+        </section>
+
+        <section data-markdown>
+          Because there's no representation of metadata,
+          resaving has removed it
+        </section>
+
+        <section data-markdown>
+          GOALS
+
+          * ~~Create an image~~ DONE
+          * ~~Compression~~ DONE
+          * ~~Conversion~~ DONE
+          * ~~Stripping metadata~~ DONE
+          * Resizing
+        </section>
+
+        <!-- https://github.com/jsummers/nfnt.resize -->
+        <section data-markdown>
+					This one is a bit more compliated, so lets use a library
+					[github.com/nfnt/resize](https://github.com/nfnt/resize)
+
+					```golang
+					import "github.com/nfnt/resize'
+					```
+
+					dep init
+
+					dep ensure
+
+					```golang
+					// resize to width 1000 using Lanczos resampling
+					// and preserve aspect ratio
+					resize.Resize(1000, 0, img, resize.Lanczos3)
+					```
+        </section>
+
+        <section data-markdown>
+          Things I learnt
+
+          * Interfaces are powerful
+          * The data structures are really simple
+          * Image resizing is harder than sampling
+        </section>
+      </div>
+    </div>
+
+    <script src="lib/js/head.min.js"></script>
+    <script src="js/reveal.js"></script>
+
+    <script>
+      // More info about config & dependencies:
+      // - https://github.com/hakimel/reveal.js#configuration
+      // - https://github.com/hakimel/reveal.js#dependencies
+      Reveal.initialize({
+        history: true,
+        dependencies: [
+          { src: 'plugin/markdown/marked.js' },
+          { src: 'plugin/markdown/markdown.js' },
+          { src: 'plugin/notes/notes.js', async: true },
+          { src: 'plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } }
+        ]
+      });
+    </script>
+  </body>
 </html>
