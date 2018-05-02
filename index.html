@@ -279,11 +279,6 @@
         </section>
 
         <section data-markdown>
-          Because there's no representation of metadata,
-          resaving has removed it
-        </section>
-
-        <section data-markdown>
           GOALS
 
           * ~~Create an image~~ DONE
@@ -295,22 +290,47 @@
 
         <!-- https://github.com/jsummers/nfnt.resize -->
         <section data-markdown>
-					This one is a bit more compliated, so lets use a library
-					[github.com/nfnt/resize](https://github.com/nfnt/resize)
+          This one is a bit more compliated, so lets use a library
+          [github.com/nfnt/resize](https://github.com/nfnt/resize)
 
-					```golang
-					import "github.com/nfnt/resize'
-					```
+          Add to code
+          ```golang
+          import "github.com/nfnt/resize'
+          ```
 
-					dep init
+          Setup vendoring
 
-					dep ensure
+          ```sh
+          dep init
+          dep ensure
+          ```
+        </section>
 
-					```golang
-					// resize to width 1000 using Lanczos resampling
-					// and preserve aspect ratio
-					resize.Resize(1000, 0, img, resize.Lanczos3)
-					```
+        <section data-markdown>
+          Lets resize to 1000px using Lanczos3
+          ```golang
+          out, err := os.Create("test.jpg")
+          if err != nil {
+            panic(err)
+          }
+          defer out.Close()
+
+          // resize to width 1000 using Lanczos resampling
+          // and preserve aspect ratio
+          resized := resize.Resize(1000, 0, img, resize.Lanczos3)
+          saveOptions := jpeg.Options{Quality: 100}
+          err = jpeg.Encode(out, resized, &amp;saveOptions)
+          if err != nil {
+            panic(err)
+          }
+          ```
+        </section>
+
+        <section data-markdown>
+          And one more time with NearestNeighbor
+          ```golang
+          resized := resize.Resize(100, 0, img, resize.NearestNeighbor)
+          ```
         </section>
 
         <section data-markdown>
